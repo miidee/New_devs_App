@@ -10,26 +10,29 @@ interface RevenueData {
 
 interface RevenueSummaryProps {
     propertyId?: string;
-    debugTenant?: string; 
+    debugTenant?: string;
     showRaw?: boolean;
+    month?: number;
+    year?: number;
 }
 
-export const RevenueSummary: React.FC<RevenueSummaryProps> = ({ propertyId = 'prop-001', debugTenant, showRaw }) => {
+export const RevenueSummary: React.FC<RevenueSummaryProps> = ({ propertyId = 'prop-001', debugTenant, showRaw, month, year }) => {
     const [data, setData] = useState<RevenueData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-
-    const activeTenant = debugTenant || 'candidate';
 
     useEffect(() => {
         const fetchRevenue = async () => {
             setLoading(true);
             try {
-                // Use SecureAPI to handle authentication automatically
-                // We pass the simulatedTenant option which SecureAPI will attach as a header
                 const response = await SecureAPI.getDashboardSummary(propertyId, {
-                    simulatedTenant: activeTenant,
-                    timestamp: Date.now()
+                    // Only send simulatedTenant in explicit debug mode — never default to a
+                    // hardcoded value, which would make all real users share the same tenant
+                    // and leak data across companies via the cache.
+                    ...(debugTenant ? { simulatedTenant: debugTenant } : {}),
+                    timestamp: Date.now(),
+                    month,
+                    year,
                 });
                 setData(response);
             } catch (err) {
@@ -41,7 +44,7 @@ export const RevenueSummary: React.FC<RevenueSummaryProps> = ({ propertyId = 'pr
         };
 
         fetchRevenue();
-    }, [propertyId, activeTenant]);
+    }, [propertyId, debugTenant, month, year]);
 
     if (loading) {
         return (
@@ -62,6 +65,9 @@ export const RevenueSummary: React.FC<RevenueSummaryProps> = ({ propertyId = 'pr
     if (!data) return null;
 
     const displayTotal = Math.round(data.total_revenue * 100) / 100;
+    const revenueLabel = month && year
+        ? new Date(year, month - 1).toLocaleString('default', { month: 'long', year: 'numeric' }) + ' Revenue'
+        : 'Total Revenue';
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-300">
@@ -75,7 +81,7 @@ export const RevenueSummary: React.FC<RevenueSummaryProps> = ({ propertyId = 'pr
             <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
                     <div>
-                        <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Revenue</h2>
+                        <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wide">{revenueLabel}</h2>
                         <div className="flex items-baseline gap-2 mt-1">
                             <span className="text-3xl font-bold text-gray-900 tracking-tight">
                                 {data.currency} {displayTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
